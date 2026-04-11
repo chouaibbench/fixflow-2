@@ -48,10 +48,10 @@ initDb().then(() => {
   // DELETE /api/tickets/:id — admin only
   app.delete('/api/tickets/:id', auth, adminMw, (req, res) => {
     const db = getDb();
-    if (!db.prepare('SELECT id FROM tikets WHERE id = ?').get(req.params.id)) {
+    if (!db.prepare('SELECT id FROM tickets WHERE id = ?').get(req.params.id)) {
       return res.status(404).json({ message: 'Not found.' });
     }
-    db.prepare('DELETE FROM tikets WHERE id = ?').run(req.params.id);
+    db.prepare('DELETE FROM tickets WHERE id = ?').run(req.params.id);
     res.json({ message: 'Deleted' });
   });
 

@@ -13,7 +13,7 @@ const withRelations = (ticket) => {
 };
 
 router.get('/', (req, res) => {
-  const tickets = getDb().prepare('SELECT * FROM tikets ORDER BY created_at DESC').all();
+  const tickets = getDb().prepare('SELECT * FROM tickets ORDER BY created_at DESC').all();
   res.json(tickets.map(withRelations));
 });
 
@@ -30,7 +30,7 @@ router.post('/', (req, res) => {
   if (!machine) return res.status(422).json({ message: 'Machine not found.' });
 
   const { lastInsertRowid } = db.prepare(
-    'INSERT INTO tikets (machine_id, reported_by, description, priority, status) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO tickets (machine_id, reported_by, description, priority, status) VALUES (?, ?, ?, ?, ?)'
   ).run(machine_id, req.user.id, description, priority, 'pending');
 
   db.prepare(
@@ -38,18 +38,18 @@ router.post('/', (req, res) => {
   ).run(req.user.id, 'created_ticket', 'ticket', lastInsertRowid,
     `${req.user.name} reported an issue on ${machine.name}`);
 
-  res.status(201).json(withRelations(db.prepare('SELECT * FROM tikets WHERE id = ?').get(lastInsertRowid)));
+  res.status(201).json(withRelations(db.prepare('SELECT * FROM tickets WHERE id = ?').get(lastInsertRowid)));
 });
 
 router.get('/:id', (req, res) => {
-  const ticket = getDb().prepare('SELECT * FROM tikets WHERE id = ?').get(req.params.id);
+  const ticket = getDb().prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
   if (!ticket) return res.status(404).json({ message: 'Not found.' });
   res.json(withRelations(ticket));
 });
 
 router.put('/:id', (req, res) => {
   const db = getDb();
-  const ticket = db.prepare('SELECT * FROM tikets WHERE id = ?').get(req.params.id);
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
   if (!ticket) return res.status(404).json({ message: 'Not found.' });
 
   if (req.body.status && !['pending', 'in-progress', 'resolved'].includes(req.body.status)) {
@@ -64,7 +64,7 @@ router.put('/:id', (req, res) => {
   const assigned_to = req.body.assigned_to !== undefined ? req.body.assigned_to : ticket.assigned_to;
 
   db.prepare(
-    'UPDATE tikets SET status=?, priority=?, assigned_to=?, updated_at=datetime("now") WHERE id=?'
+    'UPDATE tickets SET status=?, priority=?, assigned_to=?, updated_at=datetime("now") WHERE id=?'
   ).run(status, priority, assigned_to, req.params.id);
 
   const changes = [];
@@ -77,15 +77,15 @@ router.put('/:id', (req, res) => {
   ).run(req.user.id, 'updated_ticket', 'ticket', ticket.id,
     `${req.user.name} updated ticket #${ticket.id}${changes.length ? ': ' + changes.join(', ') : ''}`);
 
-  res.json(withRelations(db.prepare('SELECT * FROM tikets WHERE id = ?').get(req.params.id)));
+  res.json(withRelations(db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id)));
 });
 
 router.delete('/:id', (req, res) => {
   const db = getDb();
-  if (!db.prepare('SELECT id FROM tikets WHERE id = ?').get(req.params.id)) {
+  if (!db.prepare('SELECT id FROM tickets WHERE id = ?').get(req.params.id)) {
     return res.status(404).json({ message: 'Not found.' });
   }
-  db.prepare('DELETE FROM tikets WHERE id = ?').run(req.params.id);
+  db.prepare('DELETE FROM tickets WHERE id = ?').run(req.params.id);
   res.json({ message: 'Deleted' });
 });
 

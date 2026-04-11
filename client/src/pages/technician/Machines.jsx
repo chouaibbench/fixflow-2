@@ -8,7 +8,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 const emptyForm = { name: '', location: '', last_maintenance: '' };
 
 export const MachinesPage = () => {
-  const { machines, addMachine, updateMachine, deletMachine } = useMachines();
+  const { machines, addMachine, updateMachine, deleteMachine } = useMachines();
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -39,7 +39,7 @@ export const MachinesPage = () => {
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this machine?')) return;
-    await deletMachine(id);
+    await deleteMachine(id);
     toast.success('Machine deleted');
   };
 

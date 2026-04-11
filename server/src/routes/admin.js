@@ -8,9 +8,9 @@ router.get('/stats', (req, res) => {
     total_workers:     db.prepare("SELECT COUNT(*) as c FROM users WHERE role='worker'").get().c,
     total_technicians: db.prepare("SELECT COUNT(*) as c FROM users WHERE role='technician'").get().c,
     total_machines:    db.prepare('SELECT COUNT(*) as c FROM machines').get().c,
-    total_tickets:     db.prepare('SELECT COUNT(*) as c FROM tikets').get().c,
-    open_tickets:      db.prepare("SELECT COUNT(*) as c FROM tikets WHERE status != 'resolved'").get().c,
-    resolved_tickets:  db.prepare("SELECT COUNT(*) as c FROM tikets WHERE status = 'resolved'").get().c,
+    total_tickets:     db.prepare('SELECT COUNT(*) as c FROM tickets').get().c,
+    open_tickets:      db.prepare("SELECT COUNT(*) as c FROM tickets WHERE status != 'resolved'").get().c,
+    resolved_tickets:  db.prepare("SELECT COUNT(*) as c FROM tickets WHERE status = 'resolved'").get().c,
   });
 });
 

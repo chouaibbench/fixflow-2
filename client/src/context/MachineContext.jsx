@@ -29,13 +29,13 @@ export const MachineProvider = ({ children }) => {
     return m;
   };
 
-  const deletMachine = async (id) => {
+  const deleteMachine = async (id) => {
     await api.delete(`/machines/${id}`);
     setMachines((prev) => prev.filter((x) => x.id !== id));
   };
 
   return (
-    <MachineContext.Provider value={{ machines, isLoading, addMachine, updateMachine, deletMachine }}>
+    <MachineContext.Provider value={{ machines, isLoading, addMachine, updateMachine, deleteMachine }}>
       {children}
     </MachineContext.Provider>
   );
