@@ -1,0 +1,72 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const rateLimit = require('express-rate-limit');
+const { initDb, getDb } = require('./src/db');
+
+const app = express();
+app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
+app.use(express.json());
+
+const loginLimiter = rateLimit({ windowMs: 60_000, max: 10, message: { message: 'Too many requests.' } });
+
+initDb().then(() => {
+  const auth          = require('./src/middleware/auth');
+  const adminMw       = require('./src/middleware/admin');
+  const authRoutes    = require('./src/routes/auth');
+  const machineRoutes = require('./src/routes/machines');
+  const ticketRoutes  = require('./src/routes/tickets');
+  const userRoutes    = require('./src/routes/users');
+  const adminRoutes   = require('./src/routes/admin');
+
+  // Public auth routes
+  app.use('/api', loginLimiter, authRoutes);
+
+  // Authenticated routes
+  app.use('/api/machines', auth, machineRoutes);
+  app.use('/api/tickets',  auth, ticketRoutes);
+  app.use('/api/users',    auth, userRoutes);
+
+  // /api/logs — all authenticated users
+  app.get('/api/logs', auth, (req, res) => {
+    const logs = getDb().prepare(`
+      SELECT l.id, l.action, l.description, l.created_at, u.name as user_name
+      FROM activity_logs l LEFT JOIN users u ON l.user_id = u.id
+      ORDER BY l.created_at DESC LIMIT 50
+    `).all();
+    res.json(logs.map(l => ({
+      id: l.id, user: l.user_name ?? 'System',
+      action: l.action, description: l.description, created_at: l.created_at,
+    })));
+  });
+
+  // Admin-only routes
+  app.use('/api/admin', auth, adminMw, adminRoutes);
+
+  // DELETE /api/tickets/:id — admin only
+  app.delete('/api/tickets/:id', auth, adminMw, (req, res) => {
+    const db = getDb();
+    if (!db.prepare('SELECT id FROM tikets WHERE id = ?').get(req.params.id)) {
+      return res.status(404).json({ message: 'Not found.' });
+    }
+    db.prepare('DELETE FROM tikets WHERE id = ?').run(req.params.id);
+    res.json({ message: 'Deleted' });
+  });
+
+  // Serve built React client in production
+  const clientDist = path.join(__dirname, '..', 'client', 'dist');
+  if (require('fs').existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get('*', (req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+  }
+
+  app.use((req, res) => res.status(404).json({ message: 'Route not found.' }));
+
+  const PORT = process.env.PORT || 8000;
+  app.listen(PORT, () => console.log(`FixFlow running on http://localhost:${PORT}`));
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+});
