@@ -32,6 +32,12 @@ initDb().then(() => {
   const userRoutes    = require('./src/routes/users');
   const adminRoutes   = require('./src/routes/admin');
 
+  // Temp debug route
+  app.get('/api/debug-user', async (req, res) => {
+    const { rows } = await getDb().query('SELECT id, email, password FROM users WHERE email = $1', ['admin@fixflow.com']);
+    res.json(rows[0] || null);
+  });
+
   // Public auth routes
   app.use('/api', loginLimiter, authRoutes);
 
