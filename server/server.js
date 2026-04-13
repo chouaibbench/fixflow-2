@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const { initDb, getDb } = require('./src/db');
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors({
   origin: (origin, callback) => {
     const allowed = process.env.FRONTEND_URL || '*';
