@@ -1,13 +1,4 @@
-                                                           FixFlow - Smart Maintenance Management System
-
-App Concept Overview :
-
-FixFlow is a role-based maintenance management system that streamlines how factories and facilities handle equipment breakdowns. Workers report issues via QR codes, technicians get real-time alerts for new tickets, and admins maintain oversight through analytics dashboards.
-
-Real-world problem solved: Traditional paper-based or email-based maintenance requests get lost, delayed, or lack accountability. FixFlow provides a digital trail from issue discovery to resolution.
-
 Project Structure
-
 fixflow/
 ├── client/                    # React frontend
 │   ├── src/
