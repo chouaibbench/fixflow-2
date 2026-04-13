@@ -3,67 +3,76 @@ const bcrypt = require('bcryptjs');
 const { getDb } = require('../db');
 const admin = require('../middleware/admin');
 
-const safe = (u) => { if (!u) return null; const { password, ...r } = u; return r; };
-
-router.get('/', (req, res) => {
-  res.json(getDb().prepare('SELECT id, name, email, role, is_online, created_at FROM users').all());
+router.get('/', async (req, res) => {
+  try {
+    const { rows } = await getDb().query('SELECT id, name, email, role, is_online, created_at FROM users');
+    res.json(rows);
+  } catch { res.status(500).json({ message: 'Server error.' }); }
 });
 
-router.post('/', admin, (req, res) => {
-  const { name, email, password, role } = req.body;
-  if (!name || !email || !password || !role) return res.status(422).json({ message: 'All fields required.' });
-  if (!['worker', 'technician', 'admin'].includes(role)) return res.status(422).json({ message: 'Invalid role.' });
-  if (password.length < 8) return res.status(422).json({ message: 'Password must be at least 8 characters.' });
+router.post('/', admin, async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password || !role) return res.status(422).json({ message: 'All fields required.' });
+    if (!['worker', 'technician', 'admin'].includes(role)) return res.status(422).json({ message: 'Invalid role.' });
+    if (password.length < 8) return res.status(422).json({ message: 'Password must be at least 8 characters.' });
 
-  const db = getDb();
-  if (db.prepare('SELECT id FROM users WHERE email = ?').get(email)) {
-    return res.status(422).json({ message: 'Email already taken.' });
-  }
-  const { lastInsertRowid } = db.prepare(
-    'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)'
-  ).run(name, email, bcrypt.hashSync(password, 10), role);
-  res.status(201).json(db.prepare('SELECT id, name, email, role, is_online, created_at FROM users WHERE id = ?').get(lastInsertRowid));
+    const db = getDb();
+    const { rows: existing } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.length) return res.status(422).json({ message: 'Email already taken.' });
+
+    const { rows } = await db.query(
+      'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, is_online, created_at',
+      [name, email, bcrypt.hashSync(password, 10), role]
+    );
+    res.status(201).json(rows[0]);
+  } catch { res.status(500).json({ message: 'Server error.' }); }
 });
 
-router.put('/:id', admin, (req, res) => {
-  const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
-  if (!user) return res.status(404).json({ message: 'User not found.' });
+router.put('/:id', admin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { rows: existing } = await db.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+    if (!existing.length) return res.status(404).json({ message: 'User not found.' });
+    const user = existing[0];
 
-  if (req.body.email && req.body.email !== user.email) {
-    if (db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(req.body.email, user.id)) {
-      return res.status(422).json({ message: 'Email already taken.' });
+    if (req.body.email && req.body.email !== user.email) {
+      const { rows: taken } = await db.query('SELECT id FROM users WHERE email = $1 AND id != $2', [req.body.email, user.id]);
+      if (taken.length) return res.status(422).json({ message: 'Email already taken.' });
     }
-  }
 
-  let password = user.password;
-  if (req.body.password) {
-    if (req.body.password.length < 8) return res.status(422).json({ message: 'Password must be at least 8 characters.' });
-    password = bcrypt.hashSync(req.body.password, 10);
-  }
+    let password = user.password;
+    if (req.body.password) {
+      if (req.body.password.length < 8) return res.status(422).json({ message: 'Password must be at least 8 characters.' });
+      password = bcrypt.hashSync(req.body.password, 10);
+    }
 
-  db.prepare('UPDATE users SET name=?, email=?, role=?, password=?, updated_at=datetime("now") WHERE id=?')
-    .run(req.body.name ?? user.name, req.body.email ?? user.email, req.body.role ?? user.role, password, req.params.id);
-
-  res.json(safe(db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id)));
+    const { rows } = await db.query(
+      'UPDATE users SET name=$1, email=$2, role=$3, password=$4, updated_at=NOW() WHERE id=$5 RETURNING id, name, email, role, is_online, created_at',
+      [req.body.name ?? user.name, req.body.email ?? user.email, req.body.role ?? user.role, password, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch { res.status(500).json({ message: 'Server error.' }); }
 });
 
-router.delete('/:id', admin, (req, res) => {
-  const db = getDb();
-  if (!db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id)) {
-    return res.status(404).json({ message: 'User not found.' });
-  }
-  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
-  res.json({ message: 'User deleted' });
+router.delete('/:id', admin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { rows } = await db.query('SELECT id FROM users WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ message: 'User not found.' });
+    await db.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    res.json({ message: 'User deleted' });
+  } catch { res.status(500).json({ message: 'Server error.' }); }
 });
 
-// POST /users/toggle-online
-router.post('/toggle-online', (req, res) => {
-  const db = getDb();
-  const current = db.prepare('SELECT is_online FROM users WHERE id = ?').get(req.user.id);
-  const newVal = current.is_online ? 0 : 1;
-  db.prepare('UPDATE users SET is_online=?, updated_at=datetime("now") WHERE id=?').run(newVal, req.user.id);
-  res.json({ is_online: newVal === 1 });
+router.post('/toggle-online', async (req, res) => {
+  try {
+    const db = getDb();
+    const { rows } = await db.query('SELECT is_online FROM users WHERE id = $1', [req.user.id]);
+    const newVal = rows[0].is_online ? 0 : 1;
+    await db.query('UPDATE users SET is_online=$1, updated_at=NOW() WHERE id=$2', [newVal, req.user.id]);
+    res.json({ is_online: newVal === 1 });
+  } catch { res.status(500).json({ message: 'Server error.' }); }
 });
 
 module.exports = router;

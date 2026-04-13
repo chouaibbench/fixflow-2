@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const bcrypt = require('bcryptjs');
 const { initDb, getDb } = require('./src/db');
 
-initDb().then(() => {
+initDb().then(async () => {
   const db = getDb();
 
   const users = [
@@ -12,11 +12,11 @@ initDb().then(() => {
   ];
 
   for (const [name, email, password, role] of users) {
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existing) {
-      db.prepare('UPDATE users SET name=?, role=? WHERE email=?').run(name, role, email);
+    const { rows } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (rows.length) {
+      await db.query('UPDATE users SET name=$1, role=$2, password=$3 WHERE email=$4', [name, role, password, email]);
     } else {
-      db.prepare('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)').run(name, email, password, role);
+      await db.query('INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)', [name, email, password, role]);
     }
   }
 
@@ -29,8 +29,9 @@ initDb().then(() => {
   ];
 
   for (const [name, location, last_maintenance] of machines) {
-    if (!db.prepare('SELECT id FROM machines WHERE name = ?').get(name)) {
-      db.prepare('INSERT INTO machines (name, location, last_maintenance) VALUES (?, ?, ?)').run(name, location, last_maintenance);
+    const { rows } = await db.query('SELECT id FROM machines WHERE name = $1', [name]);
+    if (!rows.length) {
+      await db.query('INSERT INTO machines (name, location, last_maintenance) VALUES ($1, $2, $3)', [name, location, last_maintenance]);
     }
   }
 

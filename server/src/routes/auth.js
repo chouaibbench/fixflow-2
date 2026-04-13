@@ -4,38 +4,53 @@ const jwt = require('jsonwebtoken');
 const { getDb } = require('../db');
 const auth = require('../middleware/auth');
 
-router.post('/register', (req, res) => {
-  const { name, email, password, role } = req.body;
-  if (!name || !email || !password || !role) return res.status(422).json({ message: 'All fields required.' });
-  if (!['worker', 'technician'].includes(role)) return res.status(422).json({ message: 'Invalid role.' });
-  if (password.length < 8) return res.status(422).json({ message: 'Password must be at least 8 characters.' });
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password || !role) return res.status(422).json({ message: 'All fields required.' });
+    if (!['worker', 'technician'].includes(role)) return res.status(422).json({ message: 'Invalid role.' });
+    if (password.length < 8) return res.status(422).json({ message: 'Password must be at least 8 characters.' });
 
-  const db = getDb();
-  if (db.prepare('SELECT id FROM users WHERE email = ?').get(email)) {
-    return res.status(422).json({ message: 'Email already taken.' });
+    const db = getDb();
+    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length) return res.status(422).json({ message: 'Email already taken.' });
+
+    const { rows } = await db.query(
+      'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, is_online, created_at',
+      [name, email, bcrypt.hashSync(password, 10), role]
+    );
+    const user = rows[0];
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    return res.status(201).json({ user, token });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.' });
   }
-
-  const { lastInsertRowid } = db.prepare(
-    'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)'
-  ).run(name, email, bcrypt.hashSync(password, 10), role);
-
-  const user = db.prepare('SELECT id, name, email, role, is_online, created_at FROM users WHERE id = ?').get(lastInsertRowid);
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-  return res.status(201).json({ user, token });
 });
 
-router.post('/login', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(422).json({ message: 'Email and password required.' });
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(422).json({ message: 'Email and password required.' });
 
-  const user = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ message: 'Invalid credentials' });
+    const { rows } = await getDb().query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = rows[0];
+    console.log('Login attempt:', email);
+    console.log('User found:', !!user);
+    if (user) {
+      const match = bcrypt.compareSync(password, user.password);
+      console.log('Password match:', match);
+      console.log('Hash from DB:', user.password);
+    }
+    if (!user || !bcrypt.compareSync(password, user.password)) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const { password: _, ...safeUser } = user;
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    return res.json({ user: safeUser, token });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.' });
   }
-
-  const { password: _, ...safeUser } = user;
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-  return res.json({ user: safeUser, token });
 });
 
 router.post('/logout', auth, (req, res) => res.json({ message: 'Logged out' }));
