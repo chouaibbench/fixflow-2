@@ -247,9 +247,17 @@ export const TechnicianLayout = () => {
           <span className="font-bold">FixFlow</span>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <button onClick={toggleLang} className="px-2 py-1 text-xs font-bold rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
-            {lang === 'en' ? 'ع' : 'EN'}
+          <button
+            onClick={toggleOnline}
+            className={cn(
+              'rounded-lg px-2 py-1 text-xs font-medium transition-colors flex items-center gap-1.5',
+              isOnline
+                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+            )}
+          >
+            <span className={cn('h-2 w-2 rounded-full', isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400')} />
+            {isOnline ? 'Online' : 'Offline'}
           </button>
           <Button variant="ghost" size="icon">
             <Bell className="h-5 w-5" />
@@ -289,7 +297,19 @@ export const TechnicianLayout = () => {
                 </Link>
               ))}
             </nav>
-            <div className="p-4 border-t dark:border-slate-800">
+            <div className="p-4 border-t dark:border-slate-800 space-y-2">
+              <button
+                onClick={toggleOnline}
+                className={cn(
+                  'w-full rounded-lg px-3 py-2 text-sm font-medium transition-colors flex items-center gap-2',
+                  isOnline
+                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                )}
+              >
+                <span className={cn('h-2 w-2 rounded-full', isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400')} />
+                {isOnline ? 'Online — On Duty' : 'Offline — Go Online'}
+              </button>
               <Button variant="ghost" className="w-full justify-start gap-3" onClick={handleLogout}>
                 <LogOut className="h-5 w-5" />
                 Logout
